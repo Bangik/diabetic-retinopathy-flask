@@ -1,6 +1,7 @@
 import os
 import urllib.request
 from flask import Flask, flash, request, redirect, url_for, render_template, jsonify
+from flask_cors import CORS, cross_origin
 from werkzeug.utils import secure_filename
 import joblib
 from classification_svm import preprocessing, glcm
@@ -12,6 +13,7 @@ app = Flask(__name__)
 app.secret_key = "secret key"
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+cors = CORS(app)
 root_path = app.root_path
 root_path = root_path.replace("\\", "/")
 
@@ -49,6 +51,7 @@ def display_image(filename):
 	return redirect(url_for('static', filename='uploads/' + filename), code=301)
 
 @app.route('/upload-image', methods=['POST'])
+@cross_origin()
 def upload_file():
 	# check if the post request has the file part
     if 'file' not in request.files:
@@ -71,7 +74,7 @@ def upload_file():
         if prediction == 0:
             result = "Normal"
         else:
-            result = "Abnormal"
+            result = "Diabetic Retinopathy Detected"
 
         resp = jsonify(
             {
