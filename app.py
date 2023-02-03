@@ -3,8 +3,9 @@ import urllib.request
 from flask import Flask, flash, request, redirect, url_for, render_template, jsonify
 from flask_cors import CORS, cross_origin
 from werkzeug.utils import secure_filename
-import joblib
-from classification_svm import preprocessing, glcm
+# import joblib
+# from classification_svm import preprocessing, glcm
+from classification_cnn import prediction
 
 UPLOAD_FOLDER = 'static/uploads/'
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
@@ -17,7 +18,7 @@ cors = CORS(app)
 root_path = app.root_path
 root_path = root_path.replace("\\", "/")
 
-model = joblib.load(os.path.join(root_path, 'static/model_ml/model_training.pkl'))
+# model = joblib.load(os.path.join(root_path, 'static/model_ml/model_training.pkl'))
 
 def allowed_file(filename):
 	return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -67,21 +68,31 @@ def upload_file():
         filename = secure_filename(file.filename)
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
-        image = preprocessing(os.path.join(app.config['UPLOAD_FOLDER'], filename), filename)
-        glcm_feature = glcm(image)
+        # image = preprocessing(os.path.join(app.config['UPLOAD_FOLDER'], filename), filename)
+        # glcm_feature = glcm(image)
 
-        prediction = model.predict([glcm_feature])
-        if prediction == 0:
+
+        prediction_result = prediction(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        if prediction_result == 0:
             result = "Normal"
+        elif prediction_result == 1:
+            result = "NPDR Mild"
+        elif prediction_result == 2:
+            result = "NPDR Moderate"
+        elif prediction_result == 3:
+            result = "NPDR Severe"
+        elif prediction_result == 4:
+            result = "PDR"
         else:
-            result = "Diabetic Retinopathy Detected"
+            result = "No Result"
 
         resp = jsonify(
             {
                 'message' : 'File successfully uploaded',
                 'url_image': url_for('static', filename='uploads/' + filename, _external=True),
-                'url_processed': url_for('static', filename='uploads/processed-' + filename, _external=True),
-                'prediction' : result
+                # 'url_processed': url_for('static', filename='uploads/processed-' + filename, _external=True),
+                'prediction' : result,
+                'prediction_result' : int(prediction_result)
             }
         )
         resp.status_code = 201
