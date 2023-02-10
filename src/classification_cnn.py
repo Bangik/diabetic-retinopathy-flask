@@ -49,6 +49,8 @@ def preprocess_image(image_path, desired_size=224):
 def prediction(image_path):
   tes_image = np.empty((1, 224, 224, 3), dtype=np.uint8)
   tes_image[0, :, :, :] = preprocess_image(image_path)
-  predicted = model.predict(tes_image) > 0.5
+  predicted = model.predict(tes_image)
+  probability = predicted.max()
+  predicted = predicted > 0.5
   predicted = predicted.astype(int).sum(axis=1) - 1
-  return predicted
+  return predicted[0], probability

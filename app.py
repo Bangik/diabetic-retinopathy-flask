@@ -1,11 +1,10 @@
 import os
-import urllib.request
-from flask import Flask, flash, request, redirect, url_for, render_template, jsonify
+from flask import Flask, request, redirect, url_for, jsonify
 from flask_cors import CORS, cross_origin
 from werkzeug.utils import secure_filename
-# import joblib
-# from classification_svm import preprocessing, glcm
-from classification_cnn import prediction
+from src.classification_cnn import prediction
+import sqlite3
+import numpy as np
 
 UPLOAD_FOLDER = 'static/uploads/'
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
@@ -18,40 +17,67 @@ cors = CORS(app)
 root_path = app.root_path
 root_path = root_path.replace("\\", "/")
 
-# model = joblib.load(os.path.join(root_path, 'static/model_ml/model_training.pkl'))
-
 def allowed_file(filename):
 	return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-	
+
+def get_db_connection():
+    conn = sqlite3.connect('db/database.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
 @app.route('/')
-def upload_form():
-	return render_template('upload.html')
+def index():
+	return redirect('http://localhost:5173')
 
-@app.route('/', methods=['POST'])
-def upload_image():
-	if 'file' not in request.files:
-		flash('No file part')
-		return redirect(request.url)
-	file = request.files['file']
-	if file.filename == '':
-		flash('No image selected for uploading')
-		return redirect(request.url)
-	if file and allowed_file(file.filename):
-		filename = secure_filename(file.filename)
-		file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-		#print('upload_image filename: ' + filename)
-		flash('Image successfully uploaded and displayed below')
-		return render_template('upload.html', filename=filename)
-	else:
-		flash('Allowed image types are -> png, jpg, jpeg, gif')
-		return redirect(request.url)
+@app.route('/last', methods=['GET'])
+def last_data():
+    try:
+        conn = get_db_connection()
+        posts = conn.execute('SELECT * FROM retina ORDER BY id DESC LIMIT 1').fetchall()
+        conn.close()
+        res = jsonify({"data":dict(ix) for ix in posts})
+        res.status_code = 200
+        return res
+    except Exception as e:
+        res = jsonify({'message' : 'Error while get data', 'error': str(e)})
+        res.status_code = 400
+        return res
 
-@app.route('/display/<filename>')
-def display_image(filename):
-	#print('display_image filename: ' + filename)
-	return redirect(url_for('static', filename='uploads/' + filename), code=301)
+@app.route('/history')
+def history():
+    try:
+        conn = get_db_connection()
+        posts = conn.execute('SELECT * FROM retina').fetchall()
+        conn.close()
+        res = jsonify({"data":[dict(ix) for ix in posts]})
+        res.status_code = 200
+        return res
+    except Exception as e:
+        res = jsonify({'message' : 'Error while get data', 'error': str(e)})
+        res.status_code = 400
+        return res
 
-@app.route('/upload-image', methods=['POST'])
+@app.route('/history/<int:id>', methods=['PUT'])
+def update(id):
+    try:
+        if request.json['result'] == "":
+            res = jsonify({'message' : 'Result is required'})
+            res.status_code = 400
+            return res
+        
+        conn = get_db_connection()
+        conn.execute('UPDATE retina SET result = ? WHERE id = ?', (request.json['result'], id))
+        conn.commit()
+        conn.close()
+        res = jsonify({'message' : 'Data updated successfully'})
+        res.status_code = 200
+        return res
+    except Exception as e:
+        res = jsonify({'message' : 'Error while update data', 'error': str(e)})
+        res.status_code = 400
+        return res
+
+@app.route('/upload', methods=['POST'])
 @cross_origin()
 def upload_file():
 	# check if the post request has the file part
@@ -65,38 +91,45 @@ def upload_file():
         resp.status_code = 400
         return resp
     if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        try:
+            filename = secure_filename(file.filename)
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            prediction_result = prediction(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        
+            if prediction_result[0] == 0:
+                result = "Normal"
+            elif prediction_result[0] == 1:
+                result = "NPDR Mild"
+            elif prediction_result[0] == 2:
+                result = "NPDR Moderate"
+            elif prediction_result[0] == 3:
+                result = "NPDR Severe"
+            elif prediction_result[0] == 4:
+                result = "PDR"
+            else:
+                result = "No Result"
 
-        # image = preprocessing(os.path.join(app.config['UPLOAD_FOLDER'], filename), filename)
-        # glcm_feature = glcm(image)
+            conn = get_db_connection()
+            conn.execute('INSERT INTO retina (path, name, result, probability) VALUES (?, ?, ?, ?)',
+                            (os.path.join(app.config['UPLOAD_FOLDER'], filename), filename, str(prediction_result[0]), str(prediction_result[1]))
+                            )
+            conn.commit()
+            conn.close()
 
-
-        prediction_result = prediction(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-        if prediction_result == 0:
-            result = "Normal"
-        elif prediction_result == 1:
-            result = "NPDR Mild"
-        elif prediction_result == 2:
-            result = "NPDR Moderate"
-        elif prediction_result == 3:
-            result = "NPDR Severe"
-        elif prediction_result == 4:
-            result = "PDR"
-        else:
-            result = "No Result"
-
-        resp = jsonify(
-            {
-                'message' : 'File successfully uploaded',
-                'url_image': url_for('static', filename='uploads/' + filename, _external=True),
-                # 'url_processed': url_for('static', filename='uploads/processed-' + filename, _external=True),
-                'prediction' : result,
-                'prediction_result' : int(prediction_result)
-            }
-        )
-        resp.status_code = 201
-        return resp
+            resp = jsonify(
+                {
+                    'message' : 'File successfully uploaded',
+                    'url_image': url_for('static', filename='uploads/' + filename, _external=True),
+                    'prediction' : result,
+                    'stage' : str(prediction_result[0]),
+                    'probability' : str(prediction_result[1])
+                }
+            )
+            resp.status_code = 201
+            return resp
+        except Exception as e:
+            resp = jsonify({'message' : 'Error while uploading file', 'error': str(e)})
+            resp.status_code = 400
     else:
         resp = jsonify({'message' : 'Allowed file types are png, jpg, jpeg, gif'})
         resp.status_code = 400
