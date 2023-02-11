@@ -1,10 +1,10 @@
 import os
-from flask import Flask, request, redirect, url_for, jsonify
+from flask import Flask, request, redirect, url_for, jsonify, send_from_directory
 from flask_cors import CORS, cross_origin
 from werkzeug.utils import secure_filename
 from src.classification_cnn import prediction
 import sqlite3
-import numpy as np
+import pandas as pd
 
 UPLOAD_FOLDER = 'static/uploads/'
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
@@ -80,7 +80,6 @@ def update(id):
 @app.route('/upload', methods=['POST'])
 @cross_origin()
 def upload_file():
-	# check if the post request has the file part
     if 'file' not in request.files:
         resp = jsonify({'message' : 'No file part in the request'})
         resp.status_code = 400
@@ -95,19 +94,6 @@ def upload_file():
             filename = secure_filename(file.filename)
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             prediction_result = prediction(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-        
-            if prediction_result[0] == 0:
-                result = "Normal"
-            elif prediction_result[0] == 1:
-                result = "NPDR Mild"
-            elif prediction_result[0] == 2:
-                result = "NPDR Moderate"
-            elif prediction_result[0] == 3:
-                result = "NPDR Severe"
-            elif prediction_result[0] == 4:
-                result = "PDR"
-            else:
-                result = "No Result"
 
             conn = get_db_connection()
             conn.execute('INSERT INTO retina (path, name, result, probability) VALUES (?, ?, ?, ?)',
@@ -118,9 +104,7 @@ def upload_file():
 
             resp = jsonify(
                 {
-                    'message' : 'File successfully uploaded',
                     'url_image': url_for('static', filename='uploads/' + filename, _external=True),
-                    'prediction' : result,
                     'stage' : str(prediction_result[0]),
                     'probability' : str(prediction_result[1])
                 }
@@ -134,6 +118,19 @@ def upload_file():
         resp = jsonify({'message' : 'Allowed file types are png, jpg, jpeg, gif'})
         resp.status_code = 400
         return resp
+
+@app.route('/export-csv', methods=['GET'])
+def export_csv():
+    try:
+        conn = get_db_connection()
+        data = pd.read_sql_query("SELECT name, result FROM retina", conn)
+        data.to_csv('static/uploads/data.csv', index=False)
+        conn.close()
+        return send_from_directory(directory=app.config['UPLOAD_FOLDER'], path='data.csv', as_attachment=True)
+    except Exception as e:
+        res = jsonify({'message' : 'Error while get data', 'error': str(e)})
+        res.status_code = 400
+        return res
 
 if __name__ == "__main__":
     app.run()
