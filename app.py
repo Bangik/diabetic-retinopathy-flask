@@ -5,6 +5,7 @@ from werkzeug.utils import secure_filename
 from src.classification_cnn import prediction
 import sqlite3
 import pandas as pd
+import time;
 
 UPLOAD_FOLDER = 'static/uploads/'
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
@@ -96,15 +97,15 @@ def upload_file():
             prediction_result = prediction(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
             conn = get_db_connection()
-            conn.execute('INSERT INTO retina (path, name, result, probability) VALUES (?, ?, ?, ?)',
-                            (os.path.join(app.config['UPLOAD_FOLDER'], filename), filename, str(prediction_result[0]), str(prediction_result[1]))
+            conn.execute('INSERT INTO retina (path, name, result, probability, created) VALUES (?, ?, ?, ?, ?)',
+                            (os.path.join(app.config['UPLOAD_FOLDER'], filename), filename, str(prediction_result[0]), str(prediction_result[1]), time.time())
                             )
             conn.commit()
             conn.close()
 
             resp = jsonify(
                 {
-                    'url_image': url_for('static', filename='uploads/' + filename, _external=True),
+                    'url_image': os.path.join(app.config['UPLOAD_FOLDER'], filename),
                     'stage' : str(prediction_result[0]),
                     'probability' : str(prediction_result[1])
                 }
