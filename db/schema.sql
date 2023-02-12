@@ -6,5 +6,5 @@ CREATE TABLE retina (
   name TEXT NOT NULL,
   result TEXT NOT NULL,
   probability TEXT NOT NULL,
-  created TIMESTAMP NOT NULL DEFAULT (datetime('now','localtime'))
+  created TEXT NOT NULL
 );
