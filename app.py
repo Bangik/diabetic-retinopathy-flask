@@ -5,7 +5,10 @@ from werkzeug.utils import secure_filename
 from src.classification_cnn import prediction
 import sqlite3
 import pandas as pd
-import time;
+import time
+from dotenv import load_dotenv
+
+load_dotenv()
 
 UPLOAD_FOLDER = 'static/uploads/'
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
@@ -28,7 +31,7 @@ def get_db_connection():
 
 @app.route('/')
 def index():
-	return redirect('http://localhost:5173')
+	return redirect(os.getenv('URL_VUE'))
 
 @app.route('/last', methods=['GET'])
 def last_data():
