@@ -3,9 +3,9 @@
 
 Requirement
 
-Python 3.7
+Python >=3.7
 
-## How to Install and Run Localy
+## How to Install and Run Localy on Windows
 
 Clone from github
 ```bash
@@ -14,7 +14,7 @@ Clone from github
 
 Create an environment
 ```bash
-  py -3 -m venv venv
+  python -m venv venv
 ```
 
 Activate the environment
@@ -27,9 +27,14 @@ Install modules
   pip install -r requirements.txt
 ```
 
+Copy .env.example and rename it to .env and edit
+```bash
+  cp .env.example .env
+```
+
 Run app
 ```bash
-  flask --app main run
+  flask --app app run
 ```
 
 ## How to run on Docker
