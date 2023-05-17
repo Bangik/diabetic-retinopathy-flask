@@ -64,13 +64,13 @@ def history():
 @app.route('/history/<int:id>', methods=['PUT'])
 def update(id):
     try:
-        if request.json['result'] == "":
-            res = jsonify({'message' : 'Result is required'})
+        if request.json['actual_result'] == "":
+            res = jsonify({'message' : 'Actual result is required'})
             res.status_code = 400
             return res
         
         conn = get_db_connection()
-        conn.execute('UPDATE retina SET result = ? WHERE id = ?', (request.json['result'], id))
+        conn.execute('UPDATE retina SET actual_result = ? WHERE id = ?', (request.json['actual_result'], id))
         conn.commit()
         conn.close()
         res = jsonify({'message' : 'Data updated successfully'})
@@ -100,8 +100,8 @@ def upload_file():
             prediction_result = prediction(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
             conn = get_db_connection()
-            conn.execute('INSERT INTO retina (path, name, result, probability, created) VALUES (?, ?, ?, ?, ?)',
-                            (os.path.join(app.config['UPLOAD_FOLDER'], filename), filename, str(prediction_result[0]), str(prediction_result[1]), time.time())
+            conn.execute('INSERT INTO retina (path, name, result, actual_result, probability, created) VALUES (?, ?, ?, ?, ?, ?)',
+                            (os.path.join(app.config['UPLOAD_FOLDER'], filename), filename, str(prediction_result[0]), str(prediction_result[0]), str(prediction_result[1]), time.time())
                             )
             conn.commit()
             conn.close()
