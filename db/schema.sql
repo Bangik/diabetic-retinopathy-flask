@@ -5,6 +5,7 @@ CREATE TABLE retina (
   path TEXT NOT NULL,
   name TEXT NOT NULL,
   result TEXT NOT NULL,
+  actual_result TEXT NULL,
   probability TEXT NOT NULL,
   created TEXT NOT NULL
 );
